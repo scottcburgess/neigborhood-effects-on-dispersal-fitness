@@ -34,11 +34,12 @@ D0_9_Paternity.txt
 D0_1_BestCluster.csv
 D0_5_BestCluster.csv
 D0_9_BestCluster.csv
+D0_9_BestFSFamily.csv
 
 2. Relationship between files: 
 'Experiment_1.csv' is used in 'Figure 2.R'
 'Experiment_2.csv' is used in 'Figure 3.R'
-'Experiment_3.csv' is used in 'Figure 4 and 5.R'
+'Experiment_3.csv','D0_9_Paternity.txt', 'D0_9_BestCluster.csv', 'D0_9_BestFSFamily.csv',is used in 'Figure 4_5_6.R'
 
 
 3. Metadata
@@ -134,3 +135,9 @@ Probability: The probability of each Cluster estimated by the program COLONY (no
 OffspringID: Unique identifier for each offspring genotyped
 FatherID: Unique identifier for each inferred father estimated by the program COLONY
 MotherID: Unique identifier for each known mother
+
+D0_9_BestFSFamily.csv
+FullSibshipIndex: 
+Prob(Inc.): The inclusion probability. The probability that all individuals of a given full sib family are full sibs 
+Prob(Exc.): The exclusion probability. The probability that no other individuals are full-sibs with a given full-sib family
+Member1 through Member18: The OffspringID for members of each full sib family
