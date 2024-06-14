@@ -24,6 +24,9 @@ dat$Plate.ID <- sub("_.*","",dat$Unique.ID)
 summary(dat) 
 head(dat)
 tail(dat)
+dat %>% filter(Age.days=='26') %>% count(Mother.colony)
+with(dat %>% filter(Age.days=='26'), table(Mother.colony,Relatedness))
+
 
 # Create vector of the Ages that were recorded.
 Age.days.vec <- unique(dat$Age.days)

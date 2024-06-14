@@ -17,7 +17,23 @@ library('tidyr')
 # Import data
 dat <- read.csv("Experiment_1.csv",header=T)
 dat$Age.days <- factor(dat$Age.days)
+
 # Check data structure
+dat %>% count(Mother.colony)
+with(dat %>% filter(Age.days=='17',Relatedness=="Sib"), table(Mother.colony,Unique.ID))
+with(dat %>% filter(Age.days=='17',Relatedness=="Non"), table(Mother.colony,Unique.ID))
+dat %>% filter(Age.days=='17') %>% 
+  group_by(Mother.colony,Relatedness,Density) %>% 
+  summarize(n=n()) %>% 
+  pivot_wider(names_from=c(Density),
+              values_from=n) 
+foo <- dat %>% filter(Age.days=='17') %>% 
+  group_by(Mother.colony,Relatedness) %>% 
+  summarize(n=n()) %>% 
+  pivot_wider(names_from=c(Relatedness),
+              values_from=n) %>% 
+  arrange(Sib)
+# write.csv(foo,'foo.csv',row.names = F)
 summary(dat)
 head(dat)
 tail(dat)
@@ -118,6 +134,8 @@ round(B + c(-2,2) * summary(rgr_overall_1)$coefficients$cond[1,2],2)
 
 B <- summary(rgr_overall_2)$coefficients$cond[1,1]; round(B,2)
 round(B + c(-2,2) * summary(rgr_overall_2)$coefficients$cond[1,2],2)
+
+
 
 # Make Figure 2
 quartz(width=6,height=5) 
