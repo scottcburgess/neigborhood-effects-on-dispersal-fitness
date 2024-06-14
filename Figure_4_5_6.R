@@ -3,22 +3,23 @@
 # the role of neighborhood density, spatial arrangement, 
 # and genetic relatedness on survival, growth, reproduction, and paternity
 # Code finalized Feb 2024
-# Code written by Danie Barnes with input from Scott Burgess
+# Code written by Danie Barnes and Scott Burgess
 # Any comments or error reporting, please contact Scott Burgess: sburgess@bio.fsu.edu
 
 # sessionInfo()
-# R version 4.3.2
+# R version 4.4.0 (2024-04-24)
+# Platform: aarch64-apple-darwin20
+# Running under: macOS Sonoma 14.5
 
 # Load required libraries
-
-library('glmmTMB')
-library('lme4')
-library('DHARMa')
-library('vegan') # for rarefy
-library('dplyr')
-library('tidyverse')
-library('tidygraph')
-library('ggraph')
+library('glmmTMB') #v1.1.9
+library('lme4') # v1.1-35.3
+library('DHARMa') # v0.4.6
+library('vegan') # v2.6_6.1
+library('dplyr') #v1.1.4
+# library('tidyverse')
+# library('tidygraph')
+# library('ggraph')
 
 ## Import fecundity data
 dat <- read.csv("Experiment_3.csv")
@@ -133,7 +134,7 @@ mtext(side=1,"Exclusion\nprobability",line=3)
 
 
 
-
+# RESULT SECTION
 # Remove offspring from full sib families with Inclusion probabilities < 0.7
 tmp <- FSFamily_0_9 %>% filter(Prob.Inc.. < 0.7)
 offspring_to_exclude <- c(tmp$Member1,tmp$Member2)
@@ -143,10 +144,35 @@ offspring_to_exclude <- c(tmp$Member1,tmp$Member2)
 # How many kept and excluded?
 unique(BestCluster_0_9$MotherID) # 25 mothers
 nrow(FSFamily_0_9) # 538 full sib families
-nrow(FSFamily_0_9 %>% filter(Prob.Inc.. > 0.7)) # 525; (525/538)*100
+nrow(FSFamily_0_9 %>% filter(Prob.Inc.. > 0.7)) # 524; (524/538)*100
 nrow(FSFamily_0_9 %>% filter(Prob.Inc.. == 1)) # 479; (479/538)*100
 nrow(tmp) # 14 full sib families excluded
 length(offspring_to_exclude)  # 28 offspring excluded
+
+# n.fathers_0_1 <- n_fathers(BestCluster_0_1)
+# n.fathers_0_5 <- n_fathers(BestCluster_0_5)
+# Remove offspring with inclusion probabilities less than 0.7
+BestCluster_0_9 <- BestCluster_0_9 %>% filter(!(OffspringID %in% offspring_to_exclude))
+length(unique(BestCluster_0_9$MotherID)) # From 25 mothers
+nrow(BestCluster_0_9) # 591 offspring
+length(unique(BestCluster_0_9$FatherID)) # were sired by 274 fathers
+BestCluster_0_9 %>% filter(grepl("#",FatherID)) %>% summarize(n=n_distinct(FatherID)) # 267 (97%) of which were from outside the array
+BestCluster_0_9 %>% filter(!(grepl("#",FatherID))) %>% summarize(n=n()) # 18 offspring sired by colonies in the array
+BestCluster_0_9 %>% filter(!(grepl("#",FatherID))) %>% count(FatherID)
+foo <- BestCluster_0_9 %>% group_by(FatherID) %>% summarize(n=n_distinct(MotherID))
+with(foo %>% filter(!grepl("#",FatherID)),hist(n,breaks=0:6,plot=F))
+tmp <- with(foo,hist(n,breaks=0:6,plot=F))
+for.plot <- data.frame(n.mothers=tmp$mids+0.5,
+                       n.fathers=tmp$counts,
+                       freq=round(tmp$counts/sum(tmp$counts),2))
+for.plot
+
+n.fathers_0_9 <- n_fathers(d=BestCluster_0_9)
+sort(n.fathers_0_9$standardized.n.father)
+# n.fathers_0_1$UniqueNumberFather
+# n.fathers_0_5$UniqueNumberFather
+# n.fathers_0_9$UniqueNumberFather
+
 
 
 # Calculate the number of unique sires per focal colony
@@ -171,14 +197,7 @@ n_fathers <- function(d){
   return(foo2)
 }
 
-# n.fathers_0_1 <- n_fathers(BestCluster_0_1)
-# n.fathers_0_5 <- n_fathers(BestCluster_0_5)
-BestCluster_0_9 <- BestCluster_0_9 %>% filter(!(OffspringID %in% offspring_to_exclude))
-n.fathers_0_9 <- n_fathers(d=BestCluster_0_9)
-sort(n.fathers_0_9$standardized.n.father)
-# n.fathers_0_1$UniqueNumberFather
-# n.fathers_0_5$UniqueNumberFather
-# n.fathers_0_9$UniqueNumberFather
+
 
 # Calculate proportion for a beta glmm
 n.fathers_0_9$standardized.prop.father <- n.fathers_0_9$standardized.n.father / 20
