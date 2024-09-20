@@ -3,6 +3,8 @@ title: "Data analyses for Experiment 1"
 author: "Scott Burgess"
 date: "2024-09-15"
 output: pdf_document
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding = encoding, output_dir = "Outputs") })
 ---
 
 This code analyzes the data associated with Experiment 1 and produces Figure 2 in the manuscript:
