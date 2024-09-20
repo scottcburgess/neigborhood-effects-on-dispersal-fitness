@@ -53,7 +53,7 @@ DATA & FILE OVERVIEW
 
 3. Metadata
 
-# Experiment_1.csv
+## Experiment_1.csv
 
 *Unique.ID*: Unique identifier for each F1 colony out planted to the field
 *Mother.colony*: Mother identifier for each F1 colony out planted to the field.
@@ -82,7 +82,7 @@ DATA & FILE OVERVIEW
 
 
 
-# Experiment_2.csv
+## Experiment_2.csv
 
 *Unique.ID*: Unique identifier for each F1 colony out planted to the field
 
@@ -115,7 +115,7 @@ right to left.
 
 
 
-# Experiment_3.csv
+## Experiment_3.csv
 
 *Colony*: Unique identifier for each colony out planted to the field (F1 generation). Number corresponds to the parent in the F0 generation.
 
@@ -148,7 +148,7 @@ line; H=1m from G.
 
 
 
-# D0_9_final_Paternity.txt
+## D0_9_final_Paternity.txt
 
 Output from the program COLONY when the probability of a father in the candidates provided is 0.9
 
@@ -161,7 +161,7 @@ Output from the program COLONY when the probability of a father in the candidate
 
 
 
-# D0_9_final_BestCluster.csv
+## D0_9_final_BestCluster.csv
 
 Output from the program COLONY when the probability of a father in the candidates provided is 0.9
 
@@ -179,7 +179,7 @@ Output from the program COLONY when the probability of a father in the candidate
 
 
 
-# D0_9_final_BestFSFamily.csv
+## D0_9_final_BestFSFamily.csv
 
 *FullSibshipIndex*: Unique ID for each full sib family
 
