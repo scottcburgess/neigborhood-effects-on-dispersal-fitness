@@ -42,9 +42,9 @@ DATA & FILE OVERVIEW
 
 2. Relationship between files: 
 
-`Experiment 1.Rmd` uses `Experiment_1.csv` is used to make Figure 2
+`Experiment 1.Rmd` uses `Experiment_1.csv` to make Figure 2
 
-`Experiment 2.Rmd` uses `Experiment_2.csv` is used to make Figure 3
+`Experiment 2.Rmd` uses `Experiment_2.csv` to make Figure 3
 
 `Experiment 3.Rmd` uses `Experiment_3.csv`, `D0_9_final_Paternity.txt`, `D0_9_final_BestCluster.csv`, `D0_9_final_BestFSFamily.csv` to make Figure 4, 5, and 6.
 
