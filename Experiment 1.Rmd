@@ -1,0 +1,475 @@
+---
+title: "Data analyses for Experiment 1"
+author: "Scott Burgess"
+date: "2024-09-15"
+output: pdf_document
+---
+
+This code analyzes the data associated with Experiment 1 and produces Figure 2 in the manuscript:
+
+Barnes DK, Burgess SC. Fitness consequences of marine larval dispersal: the role of neighborhood density, spatial arrangement, and genetic relatedness on survival, growth, reproduction, and paternity. *Journal of Evolutionary Biology*
+
+Code finalized September 2024.
+
+Any comments or error reporting, please contact Scott Burgess: sburgess@bio.fsu.edu
+
+## Load required libraries
+```{r, message=F}
+library('tidyverse')
+library('glmmTMB')
+library('gridExtra')
+```
+
+
+```{r}
+sessionInfo()
+```
+
+
+## Import data for Experiment 1
+```{r}
+dat <- read.csv("Data/Experiment_1.csv")
+```
+
+Create a vector of the ages at which data were recorded. Note that individuals were reared in the lab for 17 days, so age 25 days is 8 days in the field, and age 32 days is 15 days in the field
+```{r}
+Age.days.vec <- unique(dat$Age.days)
+Age.days.vec
+```
+
+
+# Survival
+
+Fit generalized linear mixed effects model with a binomial distribution and random effect of plate number (Unique.ID). 
+
+## Survival after 8 days in the field
+
+```{r}
+d <- dat %>% filter(Age.days == Age.days.vec[2])
+
+survival1 <- glmmTMB(Survival ~ Density * Relatedness + 
+                         (1|Unique.ID), 
+                     family = "binomial", 
+                     data = d) 
+
+survival2 <- glmmTMB(Survival ~ Density + Relatedness + 
+                         (1|Unique.ID), 
+                     family = "binomial",
+                     data = d)
+
+survival3 <- glmmTMB(Survival ~ Density +
+                         (1|Unique.ID), 
+                     family = "binomial", 
+                     data = d)
+
+survival4 <- glmmTMB(Survival ~ Relatedness +
+                         (1|Unique.ID), 
+                     family = "binomial", 
+                     data = d)
+```
+
+Test the interaction
+```{r}
+result1 <- round(anova(survival1, survival2,test="Chisq"), 3)
+result1
+```
+
+Test `relatedness`
+```{r}
+result2 <- round(anova(survival2, survival3,test="Chisq"), 3)
+result2
+```
+
+Test `density`
+```{r}
+result3 <- round(anova(survival2, survival4,test="Chisq"), 3)
+result3
+odds.effect <- round((1 - exp(confint(survival2)[2,])) * 100, 2)
+```
+
+Results text:
+
+The probability of individual colony survival in the field declined with density after 8 days ($\chi^2$ = `r result3$Chisq[2]`, df = `r result3$'Chi Df'[2]`, p = `r result3$'Pr(>Chisq)'[2]`).
+
+The odds of survival declined by `r odds.effect[3]` (`r odds.effect[2]` - `r odds.effect[1]`) for every additional neighbor colony.
+
+There was no evidence that relatedness had additive ($\chi^2$ = `r result2$Chisq[2]`, df = `r result2$'Chi Df'[2]`, p = `r result2$'Pr(>Chisq)'[2]`) or interactive effects ($\chi^2$ = `r result1$Chisq[2]`, df = `r result1$'Chi Df'[2]`, p = `r result1$'Pr(>Chisq)'[2]`) on survival. 
+
+
+### Calculate fitted values for plotting
+
+```{r}
+predictions_survival_8days <- expand.grid(
+    Density = seq(0, 20, 0.1),
+    Relatedness = unique(dat$Relatedness))
+
+p <- predict(survival2, 
+             predictions_survival_8days, 
+             type = "link",
+             se.fit = T,
+             re.form = NA)
+
+predictions_survival_8days$fit <- plogis(p$fit)
+predictions_survival_8days$se.fit <- p$se.fit
+# Calculate confidence intervals
+predictions_survival_8days$lwr <- plogis(p$fit - 2 * p$se.fit)
+predictions_survival_8days$upr <- plogis(p$fit + 2 * p$se.fit)
+```
+
+
+
+## Survival after 15 days in the field
+
+```{r}
+d <- dat %>% filter(Age.days == Age.days.vec[3])
+
+survival1 <- glmmTMB(Survival ~ Density * Relatedness + 
+                         (1|Unique.ID), 
+                     family = "binomial", 
+                     data = d) 
+
+survival2 <- glmmTMB(Survival ~ Density + Relatedness + 
+                         (1|Unique.ID), 
+                     family = "binomial",
+                     data = d)
+
+survival3 <- glmmTMB(Survival ~ Density +
+                         (1|Unique.ID), 
+                     family = "binomial", 
+                     data = d)
+
+survival4 <- glmmTMB(Survival ~ Relatedness +
+                         (1|Unique.ID), 
+                     family = "binomial", 
+                     data = d)
+```
+
+Test the interaction
+```{r}
+result1 <- round(anova(survival1, survival2,test="Chisq"), 3)
+result1
+```
+
+Test `relatedness`
+```{r}
+result2 <- round(anova(survival2, survival3,test="Chisq"), 3)
+result2
+```
+
+Test `density`
+```{r}
+result3 <- round(anova(survival2, survival4,test="Chisq"), 3)
+result3
+odds.effect <- round((1 - exp(confint(survival2)[2,])) * 100, 2)
+```
+
+Results text:
+
+The probability of individual colony survival in the field declined with density after 15 days ($\chi^2$ = `r result3$Chisq[2]`, df = `r result3$'Chi Df'[2]`, p = `r result3$'Pr(>Chisq)'[2]`).
+
+The odds of survival declined by `r odds.effect[3]` (`r odds.effect[2]` - `r odds.effect[1]`) for every additional neighbor colony.
+
+There was no evidence that relatedness had additive ($\chi^2$ = `r result2$Chisq[2]`, df = `r result2$'Chi Df'[2]`, p = `r result2$'Pr(>Chisq)'[2]`) or interactive effects ($\chi^2$ = `r result1$Chisq[2]`, df = `r result1$'Chi Df'[2]`, p = `r result1$'Pr(>Chisq)'[2]`) on survival. 
+
+### Calculate fitted values for plotting
+
+```{r}
+predictions_survival_15days <- expand.grid(
+    Density = seq(0, 20, 0.1),
+    Relatedness = unique(dat$Relatedness))
+
+p <- predict(survival2, 
+             predictions_survival_15days, 
+             type = "link",
+             se.fit = T,
+             re.form = NA)
+
+predictions_survival_15days$fit <- plogis(p$fit)
+predictions_survival_15days$se.fit <- p$se.fit
+# Calculate confidence intervals
+predictions_survival_15days$lwr <- plogis(p$fit - 2 * p$se.fit)
+predictions_survival_15days$upr <- plogis(p$fit + 2 * p$se.fit)
+```
+
+
+\
+
+\
+
+\
+
+
+# Relative growth rate
+
+Change data to the wide format
+
+```{r}
+dat_wide <- dat %>% pivot_wider(id_cols = Unique.ID:Inside.outside,
+                                names_from = Age.days, 
+                                values_from = c(Survival, Bifurcations,Zooids))
+```
+
+Calculate relative growth rate 
+
+8 days
+
+```{r}
+dat_wide$relgrowth.collection1 <- (log(dat_wide$Zooids_25)- log(dat_wide$Zooids_17)) / (25-17)
+```
+
+15 days
+
+```{r}
+dat_wide$relgrowth.collection2 <- (log(dat_wide$Zooids_32)- log(dat_wide$Zooids_17)) / (32-17)
+```
+
+Fit generalized linear mixed effects model with a Gaussian distribution and random effect of plate number (Unique.ID). 
+
+## Relative growth rate after 8 days in the field
+
+```{r}
+rgr1 <- glmmTMB(relgrowth.collection1 ~ Density * Relatedness +
+                    (1|Unique.ID), 
+                data = dat_wide, 
+                family = gaussian())
+
+rgr2 <- glmmTMB(relgrowth.collection1 ~ Density + Relatedness + 
+                    (1|Unique.ID), 
+                data = dat_wide,
+                family = gaussian())
+
+rgr3 <- glmmTMB(relgrowth.collection1 ~ Density +
+                    (1|Unique.ID), 
+                data = dat_wide,
+                family = gaussian())
+
+rgr4 <- glmmTMB(relgrowth.collection1 ~ Relatedness +
+                    (1|Unique.ID), 
+                data = dat_wide,
+                family = gaussian())
+```
+
+Test the interaction
+```{r}
+result1 <- round(anova(rgr1, rgr2,test="Chisq"), 3)
+result1
+```
+
+Test `relatedness`
+```{r}
+result2 <- round(anova(rgr2, rgr3,test="Chisq"), 3)
+result2
+```
+
+Test `density`
+```{r}
+result3 <- round(anova(rgr2, rgr4,test="Chisq"), 3)
+result3
+```
+
+Results text:
+
+No evidence that density ($\chi^2$ = `r result3$Chisq[2]`, df = `r result3$'Chi Df'[2]`, p = `r result3$'Pr(>Chisq)'[2]`) or relatedness ($\chi^2$ = `r result2$Chisq[2]`, df = `r result2$'Chi Df'[2]`, p = `r result2$'Pr(>Chisq)'[2]`) had additive or interactive effects ($\chi^2$ = `r result1$Chisq[2]`, df = `r result1$'Chi Df'[2]`, p = `r result1$'Pr(>Chisq)'[2]`) on relative growth rate. 
+
+
+### Calculate fitted values for plotting
+
+```{r}
+predictions_rgr_8days <- expand.grid(
+    Density = seq(0, 20, 0.1),
+    Relatedness = unique(dat$Relatedness))
+
+p <- predict(rgr2, 
+             predictions_rgr_8days, 
+             type = "link",
+             se.fit = T,
+             re.form = NA)
+
+predictions_rgr_8days$fit <- p$fit
+predictions_rgr_8days$se.fit <- p$se.fit
+# Calculate confidence intervals
+predictions_rgr_8days$lwr <- p$fit - 2 * p$se.fit
+predictions_rgr_8days$upr <- p$fit + 2 * p$se.fit
+```
+
+
+## Relative growth rate after 15 days in the field
+
+```{r}
+rgr1 <- glmmTMB(relgrowth.collection2 ~ Density * Relatedness +
+                    (1|Unique.ID), 
+                data = dat_wide, 
+                family = gaussian())
+
+rgr2 <- glmmTMB(relgrowth.collection2 ~ Density + Relatedness + 
+                    (1|Unique.ID), 
+                data = dat_wide,
+                family = gaussian())
+
+rgr3 <- glmmTMB(relgrowth.collection2 ~ Density +
+                    (1|Unique.ID), 
+                data = dat_wide,
+                family = gaussian())
+
+rgr4 <- glmmTMB(relgrowth.collection2 ~ Relatedness +
+                    (1|Unique.ID), 
+                data = dat_wide,
+                family = gaussian())
+```
+
+Test the interaction
+```{r}
+result1 <- round(anova(rgr1, rgr2,test="Chisq"), 3)
+result1
+```
+
+Test `relatedness`
+```{r}
+result2 <- round(anova(rgr2, rgr3,test="Chisq"), 3)
+result2
+```
+
+Test `density`
+```{r}
+result3 <- round(anova(rgr2, rgr4,test="Chisq"), 3)
+result3
+```
+
+Results text:
+No evidence that density ($\chi^2$ = `r result3$Chisq[2]`, df = `r result3$'Chi Df'[2]`, p = `r result3$'Pr(>Chisq)'[2]`) or relatedness ($\chi^2$ = `r result2$Chisq[2]`, df = `r result2$'Chi Df'[2]`, p = `r result2$'Pr(>Chisq)'[2]`) had additive or interactive effects ($\chi^2$ = `r result1$Chisq[2]`, df = `r result1$'Chi Df'[2]`, p = `r result1$'Pr(>Chisq)'[2]`) on relative growth rate. 
+
+
+### Calculate fitted values for plotting
+
+```{r}
+predictions_rgr_15days <- expand.grid(
+    Density = seq(0, 20, 0.1),
+    Relatedness = unique(dat$Relatedness))
+
+p <- predict(rgr2, 
+             predictions_rgr_15days, 
+             type = "link",
+             se.fit = T,
+             re.form = NA)
+
+predictions_rgr_15days$fit <- p$fit
+predictions_rgr_15days$se.fit <- p$se.fit
+# Calculate confidence intervals
+predictions_rgr_15days$lwr <- p$fit - 2 * p$se.fit
+predictions_rgr_15days$upr <- p$fit + 2 * p$se.fit
+```
+
+
+
+
+
+# Make Figure 2
+```{r, fig.width=5, fig.height=5}
+my_colors <- c("#98c1d9","#ee6c4d")
+legend.labs <- c("Unrelated","Siblings")
+
+panel_A <- ggplot(data = predictions_survival_8days, 
+                  aes(x = Density,
+                      y = fit,
+                      group = Relatedness)) + 
+    geom_ribbon(aes(ymin = lwr,
+                    ymax = upr,
+                    fill = Relatedness),
+                alpha = 0.4) +
+    geom_line(aes(color = Relatedness)) +
+    scale_color_manual(values = my_colors,
+                       labels = legend.labs) +
+    scale_fill_manual(values = my_colors,
+                       labels = legend.labs) +
+    ylim(0,1) +
+    labs(x = expression(paste("Density (colonies per 12", cm^2, ")")),
+         y = "Probability of survival",
+         title = "a) 8 days in the field") +
+    theme_classic() +
+    theme(legend.position = c(0.3, 0.25),
+          legend.title=element_blank(),
+          legend.background = element_rect(fill='transparent'))
+
+panel_B <- ggplot(data = predictions_survival_15days, 
+                  aes(x = Density,
+                      y = fit,
+                      group = Relatedness)) + 
+    geom_ribbon(aes(ymin = lwr,
+                    ymax = upr,
+                    fill = Relatedness),
+                alpha = 0.4) +
+    geom_line(aes(color = Relatedness)) +
+    scale_color_manual(values = my_colors,
+                       labels = legend.labs) +
+    scale_fill_manual(values = my_colors,
+                       labels = legend.labs) +
+    ylim(0,1) +
+    labs(x = expression(paste("Density (colonies per 12", cm^2, ")")),
+         y = "Probability of survival",
+         title = "b) 15 days in the field") +
+    theme_classic() +
+    theme(legend.position = c(0.3, 0.25),
+          legend.title=element_blank(),
+          legend.background = element_rect(fill='transparent'))
+
+panel_C <- ggplot(data = predictions_rgr_8days, 
+                  aes(x = Density,
+                      y = fit,
+                      group = Relatedness)) + 
+    geom_ribbon(aes(ymin = lwr,
+                    ymax = upr,
+                    fill = Relatedness),
+                alpha = 0.4) +
+    geom_line(aes(color = Relatedness)) +
+    scale_color_manual(values = my_colors,
+                       labels = legend.labs) +
+    scale_fill_manual(values = my_colors,
+                       labels = legend.labs) +
+    ylim(0,0.25) +
+    labs(x = expression(paste("Density (colonies per 12", cm^2, ")")),
+         y = "Relative growth rate",
+         title = "c) 8 days in the field") +
+    theme_classic() +
+    theme(legend.position = c(0.3, 0.25),
+          legend.title=element_blank(),
+          legend.background = element_rect(fill='transparent'))
+
+
+panel_D <- ggplot(data = predictions_rgr_15days, 
+                  aes(x = Density,
+                      y = fit,
+                      group = Relatedness)) + 
+    geom_ribbon(aes(ymin = lwr,
+                    ymax = upr,
+                    fill = Relatedness),
+                alpha = 0.4) +
+    geom_line(aes(color = Relatedness)) +
+    scale_color_manual(values = my_colors,
+                       labels = legend.labs) +
+    scale_fill_manual(values = my_colors,
+                       labels = legend.labs) +
+    ylim(0,0.25) +
+    labs(x = expression(paste("Density (colonies per 12", cm^2, ")")),
+         y = "Relative growth rate",
+         title = "d) 15 days in the field") +
+    theme_classic() +
+    theme(legend.position = c(0.3, 0.25),
+          legend.title=element_blank(),
+          legend.background = element_rect(fill='transparent'))
+
+grid.arrange(panel_A, panel_B, panel_C, panel_D, 
+             nrow = 2,
+             ncol = 2)
+```
+
+```{r, echo=F}
+pdf("Figure 2.pdf", width = 5, height = 5)
+
+grid.arrange(panel_A, panel_B, panel_C, panel_D, 
+             nrow = 2,
+             ncol = 2)
+
+dev.off()
+```
+
+

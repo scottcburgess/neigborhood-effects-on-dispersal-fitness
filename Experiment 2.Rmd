@@ -1,0 +1,318 @@
+---
+title: "Data analyses for Experiment 2"
+author: "Scott Burgess"
+date: "2024-09-15"
+output: pdf_document
+---
+
+This code analyzes the data associated with Experiment 2 and produces Figure 3 in the manuscript:
+
+Barnes DK, Burgess SC. Fitness consequences of marine larval dispersal: the role of neighborhood density, spatial arrangement, and genetic relatedness on survival, growth, reproduction, and paternity. *Journal of Evolutionary Biology*
+
+Code finalized September 2024.
+
+Any comments or error reporting, please contact Scott Burgess: sburgess@bio.fsu.edu
+
+## Load required libraries
+```{r, message=F}
+library('tidyverse')
+library('glmmTMB')
+library('gridExtra')
+library('emmeans')
+```
+
+
+```{r}
+sessionInfo()
+```
+
+
+## Import data for Experiment 2
+```{r}
+dat <- read.csv("Data/Experiment_2.csv")
+```
+
+Create a new column called "Plate ID" for random effects
+```{r}
+dat$Plate.ID <- sub("_.*","",dat$Unique.ID) 
+```
+
+Create a vector of the ages at which data were recorded. Note that individuals were reared in the lab for 26 days, so age 46 days is 20 days in the field.
+```{r}
+Age.days.vec <- unique(dat$Age.days)
+Age.days.vec
+```
+
+Select the data from when the colonies were retrieved from the field after 20 days (age 46 days)
+```{r}
+d <- dat %>% filter(Age.days == Age.days.vec[2]) 
+```
+
+# Survival
+
+Generalized linear mixed effects model with a binomial distribution and random effect of plate number (Plate.ID).
+
+```{r}
+survival1 <- glmmTMB(Survival ~ Relatedness +
+                         (1|Plate.ID), 
+                     family = "binomial",
+                     data = d)
+
+survival2 <- glmmTMB(Survival ~ 1 +
+                         (1|Plate.ID),
+                     family = "binomial",
+                     data = d)
+```
+
+
+Test Relatedness
+```{r}
+result1 <- round(anova(survival1, survival2,test="Chisq"), 3)
+result1
+```
+
+There was no evidence that relatedness affected survival ($\chi^2$ = `r result1$Chisq[2]`, df = `r result1$'Chi Df'[2]`, p = `r result1$'Pr(>Chisq)'[2]`).
+
+
+### Calculate fitted values for plotting
+
+```{r}
+predictions_survival <- data.frame(Relatedness = unique(dat$Relatedness))
+
+p <- predict(survival1, 
+             predictions_survival, 
+             type = "link",
+             se.fit = T,
+             re.form = NA)
+
+predictions_survival$fit <- plogis(p$fit)
+predictions_survival$se.fit <- p$se.fit
+# Calculate confidence intervals
+predictions_survival$lwr <- plogis(p$fit - 2 * p$se.fit)
+predictions_survival$upr <- plogis(p$fit + 2 * p$se.fit)
+```
+
+
+
+\
+
+\
+
+
+# Relative growth rate
+
+Change data to the wide format
+
+```{r}
+dat_wide <- dat %>% pivot_wider(id_cols=Unique.ID:Position,
+                                names_from=Age.days, 
+                                values_from=c(Survival,Bifurcations,Zooids))
+```
+
+Calculate relative growth rate 
+
+```{r}
+dat_wide$relgrowth <- (log(dat_wide$Zooids_46)- log(dat_wide$Zooids_26)) / (46-26)
+```
+
+
+Create a new column called "Plate ID" for random effects
+
+```{r}
+dat_wide$Plate.ID <- sub("_.*","",dat_wide$Unique.ID) 
+```
+
+Fit generalized linear mixed effects model with a Gaussian distribution and random effect of plate number (Unique.ID). 
+
+```{r}
+rgr1 <- glmmTMB(relgrowth ~ Relatedness +
+                         (1|Plate.ID), 
+                     family = "gaussian",
+                     data = dat_wide)
+
+rgr2 <- glmmTMB(relgrowth ~ 1 +
+                         (1|Plate.ID),
+                     family = "gaussian",
+                     data = dat_wide)
+```
+
+Test Relatedness
+
+```{r}
+result1 <- round(anova(rgr1, rgr2,test="Chisq"), 3)
+result1
+```
+
+There was no evidence that relatedness affected relative growth rate ($\chi^2$ = `r result1$Chisq[2]`, df = `r result1$'Chi Df'[2]`, p = `r result1$'Pr(>Chisq)'[2]`).
+
+
+### Calculate fitted values for plotting
+
+```{r}
+predictions_rgr <- data.frame(Relatedness = unique(dat$Relatedness))
+
+p <- predict(rgr1, 
+             predictions_rgr, 
+             type = "link",
+             se.fit = T,
+             re.form = NA)
+
+predictions_rgr$fit <- p$fit
+predictions_rgr$se.fit <- p$se.fit
+# Calculate confidence intervals
+predictions_rgr$lwr <- p$fit - 2 * p$se.fit
+predictions_rgr$upr <- p$fit + 2 * p$se.fit
+```
+
+``` {r}
+nd <- data.frame(Relatedness = c(rep("Non",5),rep("Sib",10)), 
+                 Plate.ID = rownames(coef(rgr1)$cond$Plate.ID)) 
+
+plate_effects_rgr <- data.frame(nd,
+                                fit = predict(rgr1,
+                                              newdata = nd,
+                                              type="response",
+                                              se=F))
+```
+
+
+# Reproductive output
+
+Add zero ovicells for colonies that died
+```{r}
+d$Ovicells.total <- ifelse(is.na(d$Ovicells.total),0,d$Ovicells.total)
+```
+
+
+Fit zero-inflated generalized linear mixed effects model with a truncated negative binomial distribution and random effect of plate number (Unique.ID). 
+
+```{r}
+totov1 <- glmmTMB(Ovicells.total ~ Relatedness + 
+                      (1|Plate.ID), 
+                  ziformula = ~.,
+                  data = d, 
+                  family = truncated_nbinom1)
+
+totov2 <- glmmTMB(Ovicells.total ~ 1 +
+                      (1|Plate.ID), 
+                  ziformula = ~.,
+                  data = d, 
+                  family = truncated_nbinom1)
+```
+
+
+```{r}
+result1 <- round(anova(totov1, totov2,test="Chisq"), 3)
+result1
+```
+
+There was no evidence that relatedness affected reproductive output ($\chi^2$ = `r result1$Chisq[2]`, df = `r result1$'Chi Df'[2]`, p = `r result1$'Pr(>Chisq)'[2]`).
+
+### Calculate fitted values for plotting
+
+```{r}
+predictions_totov <- data.frame(Relatedness = unique(dat$Relatedness))
+
+# p <- predict(totov1, 
+#              predictions_totov, 
+#              type = "link",
+#              se.fit = T,
+#              re.form = NA)
+# 
+# predictions_totov$fit <- exp(p$fit)
+# predictions_totov$se.fit <- p$se.fit
+# # Calculate confidence intervals
+# predictions_totov$lwr <- exp(p$fit - 2 * p$se.fit)
+# predictions_totov$upr <- exp(p$fit + 2 * p$se.fit)
+
+p <- emmeans(totov1, ~ Relatedness, 
+             component = "cond", 
+             type = "response")
+
+predictions_totov$fit <- summary(p)$response
+predictions_totov$lwr <- summary(p)$asymp.LCL
+predictions_totov$upr <- summary(p)$asymp.UCL
+
+```
+
+```{r}
+nd <- data.frame(Relatedness = c(rep("Non",5),rep("Sib",10)), 
+                 Plate.ID = rownames(coef(totov1)$cond$Plate.ID)) 
+
+plate_effects_totov <- data.frame(nd,
+                                fit = predict(totov1,
+                                              newdata = nd,
+                                              type="response",
+                                              se=F))
+plate_effects_totov <- d %>% 
+    group_by(Plate.ID) %>% 
+    summarize(fit = mean(Ovicells.total))
+
+plate_effects_totov$Relatedness <- ifelse(
+    grepl("non", plate_effects_totov$Plate.ID),
+    "Non",
+    "Sib")
+```
+
+
+# Make Figure 3
+
+```{r, fig.width=6, fig.height=2}
+panel_A <- ggplot(data = predictions_survival, 
+                  aes(x = Relatedness,
+                      y = fit)) +
+    geom_linerange(aes(min = lwr,
+                       max = upr)) +
+    geom_point() +
+    ylim(0,1) +
+    labs(y = "Probability of survival",
+         title = "a)") +
+    scale_x_discrete(labels = c("Unrelated","Siblings")) +
+    theme_classic()
+
+panel_B <- ggplot(data = predictions_rgr, 
+                  aes(x = Relatedness,
+                      y = fit)) +
+    # geom_jitter(data = plate_effects_rgr, 
+    #            aes(x = Relatedness,
+    #                y = fit),
+    #            alpha = 0.4,
+    #            width = 0.05) +
+    geom_linerange(aes(min = lwr,
+                       max = upr)) +
+    geom_point() +
+    ylim(0,0.3) +
+    labs(y = "Relative growth rate",
+         title = "b)") +
+    scale_x_discrete(labels = c("Unrelated","Siblings")) +
+    theme_classic()
+
+panel_C <- ggplot(data = predictions_totov, 
+                  aes(x = Relatedness,
+                      y = fit)) +
+    geom_linerange(aes(min = lwr,
+                       max = upr)) +
+    geom_point() +
+    ylim(0,1600) +
+    labs(y = "Reproductive output",
+         title = "c)") +
+    scale_x_discrete(labels = c("Unrelated","Siblings")) +
+    theme_classic()
+
+grid.arrange(panel_A, panel_B, panel_C, 
+             nrow = 1,
+             ncol = 3)
+```
+
+```{r, echo=F}
+pdf("Figure 3.pdf", width = 6, height = 2)
+
+grid.arrange(panel_A, panel_B, panel_C, 
+             nrow = 1,
+             ncol = 3)
+
+dev.off()
+```
+
+
+

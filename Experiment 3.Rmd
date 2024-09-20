@@ -1,0 +1,666 @@
+---
+title: "Data analyses for Experiment 3"
+author: "Scott Burgess"
+date: "2024-09-15"
+output: pdf_document
+---
+
+This code analyzes the data associated with Experiment 3 and produces Figure 4, 5, and 6 in the manuscript:
+
+Barnes DK, Burgess SC. Fitness consequences of marine larval dispersal: the role of neighborhood density, spatial arrangement, and genetic relatedness on survival, growth, reproduction, and paternity. *Journal of Evolutionary Biology*
+
+Code finalized September 2024.
+
+Any comments or error reporting, please contact Scott Burgess: sburgess@bio.fsu.edu
+
+## Load required libraries
+```{r, message=F}
+library('tidyverse')
+library('glmmTMB')
+library('gridExtra')
+library('emmeans')
+library('DHARMa')
+library('vegan') 
+```
+
+
+```{r}
+sessionInfo()
+```
+
+
+## Import data from Experiment 3
+
+Phenotypic data
+
+```{r}
+dat <- read.csv("Data/Experiment_3.csv")
+```
+
+Paternity data
+
+```{r}
+Paternity_dat_0_9 <- read.table("Data/D0_9_final_Paternity.txt",header=T,sep=",")
+```
+
+Inferred fathers data
+
+```{r}
+BestCluster_0_9 <- read.csv("Data/D0_9_final_BestCluster.csv",header=T) 
+```
+
+Full sib family data 
+
+```{r}
+FSFamily_0_9 <- read.csv("Data/D0_9_final_BestFSFamily.csv")
+```
+
+
+# Process phenotypic data
+
+Only use the summed data over all time periods
+
+```{r}
+dat <- dat %>% filter(Time_days=="all") %>% select(-Time_days, -Bifurcations, -Zooids)
+```
+
+Add ID for focal colonies
+```{r}
+focals <- c("A","B","D","G")
+dat$focal <- ifelse(dat$Position %in% focals, 1, 0)
+```
+
+Create a vector of treatment levels and set the order (for plotting)
+
+```{r}
+treatment.vec <- c("alone","far","near","both")
+dat$Treatment <- factor(dat$Treatment, levels=treatment.vec)
+```
+
+
+# Process paternity data
+
+```{r}
+# Add sample data to each data frame
+brks <- seq(0,160,0.1)
+
+add_sample_data <- function(d){
+  d$MotherID <- rapply(strsplit(d$OffspringID,"_"),function(x) head(x,1))
+  d$FatherID <- rapply(strsplit(d$InferredDad1,"_"),function(x) head(x,1))
+  tmp <- dat[match(d$MotherID,dat$Colony),-1]
+  names(tmp) <- paste0("Mother.",names(tmp))
+  d <- cbind.data.frame(d,tmp)
+  tmp <- dat[match(d$FatherID,dat$Colony),-1]
+  names(tmp) <- paste0("Father.",names(tmp))
+  d <- cbind.data.frame(d,tmp)
+  
+# Calculate euclidean distance between observed parents
+  d$Distance <- NA
+  for(i in 1:nrow(d)){
+    d$Distance[i] <- dist(
+      matrix(d[i,which(names(d) %in% c("Mother.X","Father.X","Mother.Y","Father.Y"))],2,2,byrow=T),method="euclidean")
+  }
+  
+  return(d)
+}
+
+Paternity_dat_0_9 <- add_sample_data(Paternity_dat_0_9)
+```
+
+# Calculate the number of offspring sampled per mother
+
+```{r}
+OffspringIDs <- BestCluster_0_9$OffspringID
+tmp <- rapply(strsplit(OffspringIDs,"_"),function(x) head(x,1))
+
+MotherID <- paste0(tmp,"_parent")
+
+offspring_per_mother <- as.data.frame(table(MotherID))
+offspring_per_mother
+```
+
+# How many settlers were genotyped?
+```{r}
+with(offspring_per_mother,table(Freq))
+nrow(offspring_per_mother) # mothers
+sum(offspring_per_mother$Freq) # offspring
+nrow(dat) # potential fathers
+```
+
+\
+
+\
+
+
+# Analyze Reproductive Output
+
+```{r}
+m1 <- glmmTMB(Offspring ~ Treatment + (1|Block), 
+              ziformula = ~.,
+              data = dat, 
+              family = truncated_nbinom1)
+
+m2 <- glmmTMB(Offspring ~ 1 + (1|Block), 
+              ziformula = ~.,
+              data = dat, 
+              family = truncated_nbinom1)
+
+result_reprod <- round(anova(m1, m2, test = "Chisq"), 3)
+result_reprod
+```
+
+Check model fit
+
+```{r, message=F}
+simulateResiduals(fittedModel = m1, plot = T)
+```
+
+Get predicted values for plotting
+
+```{r}
+predictions_reprod = data.frame(Treatment = treatment.vec)
+
+p <- emmeans(m1, ~ Treatment, 
+             component = "cond", 
+             type = "response")
+
+predictions_reprod$fit <- summary(p)$response
+predictions_reprod$lwr <- summary(p)$asymp.LCL
+predictions_reprod$upr <- summary(p)$asymp.UCL
+```
+
+```{r}
+nd <- expand.grid(Treatment = treatment.vec, 
+                 Block = rownames(coef(m1)$cond$Block)) 
+
+block_effects_reprod <- data.frame(nd,
+                                fit = predict(m1,
+                                              newdata = nd,
+                                              type="response",
+                                              se=F))
+```
+
+Reproductive output was similar for individuals in all treatments ($\chi^2$ = `r result_reprod$Chisq[2]`, df = `r result_reprod$'Chi Df'[2]`, p = `r result_reprod$'Pr(>Chisq)'[2]`).
+
+
+\
+
+\
+
+
+# Analyze Relative Growth Rate
+
+```{r}
+m1 <- glmmTMB(rgr40 ~ Treatment + (1|Block), data = dat)
+
+m2 <- glmmTMB(rgr40 ~ 1 + (1|Block), data = dat)
+
+result_rgr <- round(anova(m1, m2, test = "Chisq"), 3)
+result_rgr
+```
+
+Check model fit
+
+```{r, message=F}
+simulateResiduals(fittedModel = m1, plot = T)
+```
+
+Check influence of outliers
+
+```{r}
+outliers <- dat[which(resid(m1) < -0.06), 'Colony']
+tmp <- dat %>% filter(!Colony %in% outliers)
+m1 <- glmmTMB(rgr40 ~ Treatment + (1|Block), data = tmp)
+
+m2 <- glmmTMB(rgr40 ~ 1 + (1|Block), data = tmp)
+
+round(anova(m1, m2, test = "Chisq"), 3)
+```
+
+No qualitative change.
+
+Relative growth rate was similar for individuals in all treatments ($\chi^2$ = `r result_rgr$Chisq[2]`, df = `r result_rgr$'Chi Df'[2]`, p = `r result_rgr$'Pr(>Chisq)'[2]`).
+
+\
+
+\
+
+
+# Remove offspring from full sib families with Inclusion probabilities < 0.7
+
+```{r}
+tmp <- FSFamily_0_9 %>% filter(Prob.Inc.. < 0.7)
+
+offspring_to_exclude <- c(tmp$Member1,tmp$Member2)
+
+BestCluster_0_9 <- BestCluster_0_9 %>% filter(!(OffspringID %in% offspring_to_exclude))
+
+```
+
+### How many kept and excluded?
+```{r}
+nrow(FSFamily_0_9) # number of full sib families
+
+nrow(FSFamily_0_9 %>% filter(Prob.Inc.. > 0.7)) # number of full sib families with high confidence
+
+(nrow(FSFamily_0_9 %>% filter(Prob.Inc.. > 0.7)) / nrow(FSFamily_0_9)) * 100 # %
+
+# number of full sib families with very high confidence (1)
+nrow(FSFamily_0_9 %>% filter(Prob.Inc.. == 1)) 
+
+(nrow(FSFamily_0_9 %>% filter(Prob.Inc.. == 1)) / nrow(FSFamily_0_9)) * 100 # %
+
+nrow(tmp) # number full sib families excluded
+
+length(offspring_to_exclude)  # number offspring excluded
+```
+
+
+```{r}
+length(unique(BestCluster_0_9$MotherID)) # From this many mothers
+
+nrow(BestCluster_0_9) # this many offspring
+
+length(unique(BestCluster_0_9$FatherID)) # were sired by this many fathers
+
+# this many of which were from outside the array
+BestCluster_0_9 %>% filter(grepl("#",FatherID)) %>% summarize(n=n_distinct(FatherID)) 
+
+# this many  offspring sired by colonies in the array
+BestCluster_0_9 %>% filter(!(grepl("#",FatherID))) %>% summarize(n=n()) 
+
+BestCluster_0_9 %>% group_by(FatherID) %>% 
+  summarize(n=n_distinct(MotherID)) %>% count(n)
+```
+
+
+## Calculate the number of unique sires per focal colony
+
+```{r, message=F}
+n_fathers <- function(d){
+  d$Mother_ID <- rapply(strsplit(d$MotherID,"_"),function(x) head(x,1))
+  
+  foo1 <- d %>% 
+    group_by(Mother_ID,FatherID) %>% 
+    summarise(n=n()) %>% 
+    mutate(freq=n/sum(n)) %>% 
+    ungroup()
+  
+  foo2 <- foo1 %>% group_by(Mother_ID) %>% 
+    summarise(nGenotyped=sum(n),
+              UniqueNumberFather=n_distinct(FatherID))
+  
+  foo2$standardized.n.father <- with(foo1, tapply(n, Mother_ID, vegan::rarefy, sample=19))
+  foo2$standardized.n.father <- round(foo2$standardized.n.father,3)
+    # add sample info 
+  foo2 <- cbind.data.frame(foo2,dat[match(foo2$Mother_ID,dat$Colony),c(1:7,12)])
+  
+  foo2
+}
+
+n.fathers_0_9 <- n_fathers(d=BestCluster_0_9)
+sort(n.fathers_0_9$standardized.n.father)
+sort(n.fathers_0_9$UniqueNumberFather)
+```
+
+Calculate proportion for a beta glmm
+
+```{r}
+n.fathers_0_9$standardized.prop.father <- n.fathers_0_9$standardized.n.father / 20
+
+# make the 1's 0.9999 so can fit beta glmm
+n.fathers_0_9$standardized.prop.father <- ifelse(n.fathers_0_9$standardized.prop.father == 1,
+                                                 0.99999,
+                                                 n.fathers_0_9$standardized.prop.father)
+```
+
+# Analyze Number of Unique Sires per Mother
+
+```{r}
+m1 <- glmmTMB(standardized.prop.father  ~ Treatment + 
+                (1|Block),
+              family = 'beta_family',
+              data = n.fathers_0_9)
+
+m2 <- glmmTMB(standardized.prop.father  ~ 1 +
+                (1|Block), 
+              family = 'beta_family',
+              data = n.fathers_0_9)
+
+result_sires <- round(anova(m1, m2, test = "Chisq"), 3)
+result_sires
+```
+
+Get predicted values for plotting
+
+```{r}
+predictions_sires = data.frame(Treatment = treatment.vec)
+
+p <- emmeans(m1, ~ Treatment, 
+             component = "cond", 
+             type = "response")
+
+predictions_sires$fit <- summary(p)$response * 20
+predictions_sires$lwr <- summary(p)$asymp.LCL * 20
+predictions_sires$upr <- summary(p)$asymp.UCL * 20
+```
+
+```{r}
+nd <- expand.grid(Treatment = treatment.vec, 
+                 Block = rownames(coef(m1)$cond$Block)) 
+
+block_effects_sires <- data.frame(nd,
+                                fit = predict(m1,
+                                              newdata = nd,
+                                              type="response",
+                                              se=F))
+
+block_effects_sires$fit <- block_effects_sires$fit * 20
+```
+
+
+The number of standardized unique sires per colony did not differ among treatments ($\chi^2$ = `r result_sires$Chisq[2]`, df = `r result_sires$'Chi Df'[2]`, p = `r result_sires$'Pr(>Chisq)'[2]`).
+
+
+# Calculate the proportion of offspring from an assigned father
+
+Get the mother ID's with an assigned father
+
+```{r, message=F}
+offspring.proportion <- function(a,b){
+# Get the maternal ID for offspring with a father in the array 
+    d1 <- a %>% 
+    distinct(MotherID,.keep_all=T)
+# Add mother and father ID's to BestCluster data frame
+  b$Mother_ID <- rapply(strsplit(b$MotherID,"_"),function(x) head(x,1))
+  b$Father_ID <- rapply(strsplit(b$FatherID,"_"),function(x) head(x,1))
+# Get the data from BestCluster for offspring with a father in the array
+# and calculate the number and frequency of offspring 
+# per mother-father combination
+  d2 <- b %>% 
+    filter(Mother_ID %in% d1$MotherID) %>% 
+    group_by(Mother_ID,Father_ID) %>% 
+    summarise(n=n()) %>% 
+    mutate(freq=n/sum(n)) %>% 
+    ungroup()
+# Calculate the max frequency of fathers per mother
+  d3 <- d2 %>% 
+    group_by(Mother_ID) %>% 
+    mutate(max.freq=max(freq)) %>% 
+    ungroup()
+# Collect and arrange data  
+  d4 <- d3[grep("#",d3$Father_ID,invert=T),]
+  d5 <- cbind.data.frame(d4, d1[match(d4$Mother_ID,d1$MotherID),])
+  d6 <- d5 %>% select(Mother_ID, Father_ID,
+                      n, freq, max.freq,
+                      ProbDad1,
+                      Mother.Block, Mother.Treatment, Mother.Position, Mother.Direction,
+                      Father.Block, Father.Treatment, Father.Position, Father.Direction)
+  
+  d6
+}
+
+offspring.proportion_0_9 <- offspring.proportion(Paternity_dat_0_9, BestCluster_0_9)
+offspring.proportion_0_9
+# Out of 511 offspring with full sib inclusion probabilities > 0.7, 
+# 13 (2.5%) offspring were assigned paternity from one of 
+# five candidate fathers in the experimental array
+sum(offspring.proportion_0_9$n)
+length(unique(offspring.proportion_0_9$Father_ID))
+offspring.proportion_0_9 %>% count(Father_ID)
+Paternity_dat_0_9 %>% count(Distance)
+```
+
+\
+
+\
+
+\
+
+
+# Make Figure 4
+
+```{r, fig.width = 6, fig.height = 2}
+
+# Panel A
+panel_A <- ggplot(data = predictions_reprod,
+                  aes(x = Treatment,
+                      y = fit)) +
+  # geom_jitter(data = block_effects_reprod,
+  #            aes(x = Treatment,
+  #                y = fit),
+  #            width = 0.05,
+  #            alpha = 0.4,
+  #            color = "grey") +
+  geom_linerange(data = predictions_reprod,
+                 aes(ymin = lwr,
+                     ymax = upr)) +
+  geom_point() +
+  labs(y = "Reproductive output\n(number of settlers)",
+       title = "a)") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Panel B
+panel_B <- ggplot(data = predictions_sires,
+                  aes(x = Treatment,
+                      y = fit)) +
+  # geom_jitter(data = block_effects_sires,
+  #            aes(x = Treatment,
+  #                y = fit),
+  #            width = 0.05,
+  #            alpha = 0.4,
+  #            color = "grey") +
+  geom_linerange(aes(ymin = lwr,
+                     ymax = upr)) +
+  geom_point() +
+  ylim(0, 20) +
+  labs(y = "Standardized number\nof sires per colony",
+       title = "b)") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+
+# Panel C
+tmp <- offspring.proportion_0_9 %>% filter(Mother.Block==Father.Block)
+
+# far
+y1 <- tmp %>% filter(Mother.Position=="B" & Father.Position == "C" |
+                         Mother.Position=="C" & Father.Position == "B")
+# near 
+y2 <- tmp %>% filter(Mother.Position=="G" & Father.Position %in% c("H"))
+
+# both
+y3 <- tmp %>% filter(Mother.Position=="D" & Father.Position %in% c("E","F"))
+  
+tmp <- rbind.data.frame(y1, y2, y3)
+
+panel_C <- ggplot(data = tmp, 
+                  aes(x = Father.Treatment,
+                      y = freq)) +
+  geom_point() +
+# for Mother_ID 02a, there were two fathers from the same block
+    geom_linerange(data = tmp %>% filter(Mother_ID == "02a"),
+                 aes(ymin = freq,
+                     ymax = max.freq)) +
+  labs(x = "Treatment",
+       y = "Proportion of offspring\nsired by nearest colony",
+       title = "c)") +
+  scale_x_discrete(label = c("far","near","both\n(far)")) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+
+grid.arrange(panel_A, panel_B, panel_C,
+             nrow = 1, 
+             ncol = 3)
+```
+
+```{r, echo=F}
+pdf("Figure 4.pdf", width = 6, height = 2)
+
+grid.arrange(panel_A, panel_B, panel_C,
+             nrow = 1,
+             ncol = 3)
+
+dev.off()
+```
+
+
+# Make Figure 5 (Inclusion and exclusion probabilities)
+
+```{r, fig.width = 4, fig.height = 2}
+# Set breaks for plotting
+brks <- seq(0,1,0.05)
+
+# Get frequency of Inclusion probabilities
+Inc <- with(FSFamily_0_9, hist(Prob.Inc.., 
+                               breaks = brks, 
+                               plot = F))
+
+# Get frequency of Exclusion probabilities
+Exc <- with(FSFamily_0_9,hist(Prob.Exc.., 
+                              breaks = brks, 
+                              plot = F))
+
+# Panel A
+d <- cbind.data.frame(mids = Inc$mids, counts = Inc$counts)
+y <- d %>% filter(counts>0)
+
+panel_A <- ggplot() +
+  geom_col(data = y %>% filter(mids < 0.7), 
+           aes(x = mids, 
+               y = counts),
+           fill = "grey",
+           show.legend = F) + 
+  xlim(0,1) + ylim(0,max(y$counts)) +
+  geom_col(data = y %>% filter(mids >= 0.7), 
+           aes(x = mids, 
+               y = counts),
+           fill = "black",
+           show.legend = F) +
+  labs(x = "Inclusion\nprobability",
+       y = "Frequency of\nfull sib families",
+       title = "a)") +
+  theme_classic()
+  
+# Panel B
+d <- cbind.data.frame(mids = Exc$mids, counts = Exc$counts)
+y <- d %>% filter(counts>0)
+
+panel_B <- ggplot() +
+  geom_col(data = y, 
+           aes(x = mids, 
+               y = counts),
+           fill = "black",
+           show.legend = F) + 
+  xlim(0,1) +
+  labs(x = "Exlusion\nprobability",
+       y = "",
+       title = "b") +
+  theme_classic()
+
+grid.arrange(panel_A, panel_B, nrow = 1, ncol = 2)
+```
+
+```{r, echo=F}
+pdf("Figure 5.pdf", width = 4, height = 2)
+
+grid.arrange(panel_A, panel_B,
+             nrow = 1,
+             ncol = 2)
+
+dev.off()
+```
+
+\
+
+\
+
+
+# Calculate the frequency of potential and observed distances between parents
+
+```{r}
+brks <- seq(0,200,0.1)
+# # Potential distances
+tmp <- dat %>% select("X", "Y")
+mat <- dist(tmp, diag = T)
+possible_distances <- mat[lower.tri(mat, diag = T)]
+a <- hist(possible_distances, breaks = brks, plot = F)
+possible_density <- data.frame(density = a$density / max(a$density),
+                               mids = a$mids)
+# Observed
+density_freq <- function(d){
+  b <- hist(d$Distance,breaks=brks,plot=F)
+  data.frame(n = b$counts,
+             density = b$density / max(b$density),
+             mids = b$mids)
+}
+
+observed_density_0_9 <- density_freq(Paternity_dat_0_9)
+
+possible_density$Metric <- "Potential"
+observed_density_0_9$Metric <- "Observed"
+density_data <- rbind.data.frame(possible_density, observed_density_0_9[,-1])
+density_data$Metric <- factor(density_data$Metric, 
+                              levels = c("Potential","Observed"))
+```
+
+
+
+# Make Figure 6
+
+```{r, warning=F, fig.width = 4, fig.height = 3}
+
+panel_A <- ggplot() +
+  geom_col(data = density_data, 
+                  aes(x = mids,
+                      y = density,
+                      fill = Metric),
+           width = 3,
+           alpha = 0.4,
+           position_dodge(0.01)) +
+  labs(x = "Distance between mother and father (m)", 
+       y = "Relative\nfrequency",
+       title = "a) Whole array") +
+  scale_fill_manual(name = 'd',
+                    breaks = c('Potential','Observed'),
+                    values = c('Potential' = 'grey',
+                               'Observed' = 'tomato')) +
+  scale_x_continuous(breaks = seq(0,300,25)) +
+  theme_classic() +
+  theme(legend.position = 'none')
+
+panel_B <- ggplot() +
+  geom_col(data = density_data %>% filter(mids < 1.2), 
+                  aes(x = mids,
+                      y = density,
+                      fill = Metric),
+           width = 0.02,
+           alpha = 0.4,
+           position_dodge(0.1)) +
+  labs(x = "Distance between mother and father (m)", 
+       y = "Relative\nfrequency",
+       title = "b) Within treatments") +
+  scale_fill_manual(name = '',
+                    breaks = c('Potential','Observed'),
+                    values = c('Potential' = 'grey',
+                               'Observed' = 'tomato')) +
+  scale_x_continuous(breaks = seq(0,3,0.1)) +
+  theme_classic() +
+  theme(legend.position = c(0.8, 0.9),
+        legend.key.size = unit(0.3, 'cm'))
+
+grid.arrange(panel_A, panel_B,
+             ncol = 1,
+             nrow = 2)
+```
+
+```{r, echo=F, warning=F}
+pdf("Figure 6.pdf", width = 4, height = 3)
+
+grid.arrange(panel_A, panel_B,
+             nrow = 2,
+             ncol = 1)
+
+dev.off()
+```
+

@@ -1,0 +1,14 @@
+OffspringID,InferredDad1,ProbDad1
+02a_24_05_Plate4_H1,03a_parent,1.0000
+02a_24_08_Plate5_D10,12b_parent,1.0000
+02a_32_04_Plate6_H11,03a_parent,1.0000
+06a_24_03_Plate7_B1,20a_parent,1.0000
+06a_40_02_Plate1_H4,20a_parent,1.0000
+09a_36_02_Plate4_G3,12b_parent,1.0000
+20a_24_02_Plate5_D7,06a_parent,1.0000
+20a_24_03_Plate3_A2,06a_parent,1.0000
+20a_36_04_Plate2_G9,06a_parent,1.0000
+20a_40_04_Plate5_A5,06a_parent,1.0000
+22a_36_02_Plate2_H9,12b_parent,1.0000
+22a_40_01_Plate5_C7,12b_parent,1.0000
+26a_40_04_Plate3_E12,05b_parent,1.0000
