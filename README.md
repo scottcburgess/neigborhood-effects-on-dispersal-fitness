@@ -28,6 +28,9 @@ Danielle K Barnes, Scott C. Burgess. (in press) Fitness consequences of marine l
 
 DATA & FILE OVERVIEW
 
+`Experiment 1.Rmd`  
+`Experiment 2.Rmd`  
+`Experiment 3.Rmd`  
 `Experiment_1.csv`  
 `Experiment_2.csv`  
 `Experiment_3.csv`  
@@ -46,7 +49,7 @@ DATA & FILE OVERVIEW
 `Experiment 3.Rmd` uses `Experiment_3.csv`, `D0_9_final_Paternity.txt`, `D0_9_final_BestCluster.csv`, `D0_9_final_BestFSFamily.csv` to make Figure 4, 5, and 6.
 
 
-\
+
 
 3. Metadata
 
@@ -77,7 +80,7 @@ DATA & FILE OVERVIEW
 
 *Survival*: 1=survived, 0=died
 
-\
+
 
 # Experiment_2.csv
 
@@ -110,7 +113,7 @@ right to left.
 
 *Ovicells.total*: Number of total ovicells (fertilized and unfertilized) on a focal colony, counted under the microscope
 
-\
+
 
 # Experiment_3.csv
 
@@ -143,7 +146,7 @@ line; H=1m from G.
 
 *Survival*: 1=survived, 0=died
 
-\
+
 
 # D0_9_final_Paternity.txt
 
@@ -156,7 +159,7 @@ Output from the program COLONY when the probability of a father in the candidate
 *ProbDad1*: The probability that the InferredDad1 is the father of each offspring in OffspringID
 
 
-\
+
 
 # D0_9_final_BestCluster.csv
 
@@ -173,7 +176,8 @@ Output from the program COLONY when the probability of a father in the candidate
 
 *MotherID*: Unique identifier for each known mother
 
-\
+
+
 
 # D0_9_final_BestFSFamily.csv
 
